@@ -1,0 +1,12 @@
+[package]
+name = "mikado"
+description = "Microphone, Camera and Display"
+version = "0.1.0"
+edition = "2021"
+build = "build/main.rs"
+
+[dependencies]
+parking_lot = "0.12"
+
+[build-dependencies]
+bindgen = "0.69.0"
