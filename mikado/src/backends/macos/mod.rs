@@ -1,36 +1,64 @@
-use icrate::Foundation::{MainThreadMarker, NSThread};
+use std::{marker::PhantomData, rc::Rc};
 
-use crate::{MikadoError, Result};
+use crate::{MikadoError, Result, ScreenDisplay};
+
+use core_graphics::display::{CGDirectDisplayID, CGDisplayBounds, CGGetActiveDisplayList};
 
 #[derive(Debug)]
 pub struct Screen {
-    pub width: f64,
-    pub height: f64,
+    pub platform_id: CGDirectDisplayID,
 }
 
 pub struct MikadoContext {
-    mtm: MainThreadMarker,
+    not_send: PhantomData<Rc<()>>,
 }
 
 impl MikadoContext {
-    pub fn new() -> Result<Self> {
-        // todo: For some reason, doing this the safe way always errors...
-        let mtm = unsafe { MainThreadMarker::new_unchecked() }
-        // .ok_or_else(|| {
-        //     MikadoError::GeneralError("Mikado must be initialized on the main thread".to_string())
-        // })?
-        ;
-        Ok(Self { mtm })
+    /// SAFETY: This must be created on your application's main thread
+    pub unsafe fn new() -> Self {
+        Self {
+            not_send: PhantomData,
+        }
     }
 
-    pub fn list_screens(&self) -> Vec<Screen> {
-        icrate::AppKit::NSScreen::screens(self.mtm)
+    pub fn list_screens(&self) -> Result<Vec<Screen>> {
+        let mut displays: Vec<CGDirectDisplayID> = Vec::with_capacity(32);
+
+        unsafe {
+            let mut display_count = 0u32;
+            let result = CGGetActiveDisplayList(
+                displays.capacity() as u32,
+                displays.as_mut_ptr(),
+                &mut display_count,
+            );
+            if result != 0 {
+                return Err(MikadoError::GeneralError(format!(
+                    "CGSetActiveDisplayList returned {}",
+                    result
+                )));
+            }
+            displays.set_len(display_count as usize);
+        };
+
+        Ok(displays
             .into_iter()
-            .map(|screen| Screen {
-                width: screen.frame().size.width,
-                height: screen.frame().size.height,
-            })
-            .collect()
+            .map(|id| Screen { platform_id: id })
+            .collect())
+    }
+}
+
+impl Screen {
+    pub fn bounds(&self) -> ScreenDisplay {
+        unsafe {
+            // CGDisplayBounds is in "global display" coordinates, where 0 is
+            // the top left of the primary display.
+            let bounds = CGDisplayBounds(self.platform_id);
+
+            ScreenDisplay {
+                origin: (bounds.origin.x as f32, bounds.origin.y as f32),
+                size: (bounds.size.width as f32, bounds.size.height as f32),
+            }
+        }
     }
 }
 
@@ -40,8 +68,8 @@ mod tests {
 
     #[test]
     fn test_list_screens() {
-        let cx = MikadoContext::new().unwrap();
-        dbg!(cx.list_screens());
-        unimplemented!()
+        let cx = unsafe { MikadoContext::new() };
+        let screens = cx.list_screens().unwrap();
+        assert!(screens.len() >= 1);
     }
 }
