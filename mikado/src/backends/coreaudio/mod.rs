@@ -1,7 +1,6 @@
-use std::{
-    mem::{self, MaybeUninit},
-    ptr,
-};
+use std::{mem, ptr};
+
+use crate::{MikadoError, Result};
 
 pub mod sys {
     #![allow(non_camel_case_types)]
@@ -11,7 +10,12 @@ pub mod sys {
     include!(concat!(env!("OUT_DIR"), "/coreaudio.rs"));
 }
 
-pub fn list_microphones() {
+#[derive(Debug)]
+pub struct Microphone {
+    device: sys::AudioDeviceID,
+}
+
+pub fn list_microphones() -> Result<Vec<Microphone>> {
     let property_address = sys::AudioObjectPropertyAddress {
         mSelector: sys::kAudioHardwarePropertyDefaultInputDevice,
         mScope: sys::kAudioObjectPropertyScopeGlobal,
@@ -29,8 +33,10 @@ pub fn list_microphones() {
         )
     };
     if status != sys::kAudioHardwareNoError as i32 {
-        eprintln!("Error getting data size: {}", status);
-        return;
+        return Err(MikadoError::GeneralError(format!(
+            "Error getting data size: {}",
+            status
+        )));
     }
 
     let device_count = data_size / mem::size_of::<sys::AudioDeviceID>() as u32;
@@ -48,8 +54,10 @@ pub fn list_microphones() {
     };
 
     if status != sys::kAudioHardwareNoError as i32 {
-        eprintln!("Error getting device ids: {}", status);
-        return;
+        return Err(MikadoError::GeneralError(format!(
+            "Error getting device ids: {}",
+            status
+        )));
     }
 
     unsafe {
@@ -60,6 +68,13 @@ pub fn list_microphones() {
     audio_devices.iter().for_each(|id| {
         println!("Device id: {:?}", id);
     });
+
+    let microphones = audio_devices
+        .into_iter()
+        .map(|id| Microphone { device: id })
+        .collect();
+
+    Ok(microphones)
 }
 
 #[cfg(test)]
@@ -68,6 +83,6 @@ mod tests {
 
     #[test]
     fn test_list_microphones() {
-        list_microphones();
+        dbg!(list_microphones()).ok();
     }
 }
