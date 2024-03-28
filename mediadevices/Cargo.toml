@@ -1,9 +1,10 @@
 [package]
-name = "mikado"
+name = "mediadevices"
 description = "Microphone, Camera and Display"
 version = "0.1.0"
 edition = "2021"
 build = "build/main.rs"
+license = "Apache-2.0"
 
 [dependencies]
 thiserror = "1.0"

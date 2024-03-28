@@ -11,6 +11,10 @@ pub mod sys {
     include!(concat!(env!("OUT_DIR"), "/coreaudio.rs"));
 }
 
+#[derive(Debug)]
+#[repr(transparent)]
+pub struct AudioDevice(sys::AudioDeviceID);
+
 pub fn list_microphones() {
     let property_address = sys::AudioObjectPropertyAddress {
         mSelector: sys::kAudioHardwarePropertyDefaultInputDevice,
